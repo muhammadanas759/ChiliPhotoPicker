@@ -6,6 +6,7 @@ import android.app.Dialog
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.TypedValue
@@ -88,7 +89,11 @@ class PhotoPickerFragment : DialogFragment() {
             false
         )
             .apply {
-                contextWrapper.theme.resolveAttribute(R.attr.pickerCornerRadius, cornerRadiusOutValue, true)
+                contextWrapper.theme.resolveAttribute(
+                    R.attr.pickerCornerRadius,
+                    cornerRadiusOutValue,
+                    true
+                )
 
                 photos.apply {
                     adapter = photoAdapter
@@ -107,7 +112,11 @@ class PhotoPickerFragment : DialogFragment() {
                 camera_container.setOnClickListener { pickImageCamera() }
                 findViewById<TextView>(R.id.grant).setOnClickListener { grantPermissions() }
 
-                pickerBottomSheetCallback.setMargin(requireContext().resources.getDimensionPixelSize(cornerRadiusOutValue.resourceId))
+                pickerBottomSheetCallback.setMargin(
+                    requireContext().resources.getDimensionPixelSize(
+                        cornerRadiusOutValue.resourceId
+                    )
+                )
             }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -153,8 +162,16 @@ class PhotoPickerFragment : DialogFragment() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == Request.MEDIA_ACCESS_PERMISSION && isPermissionGranted(Manifest.permission.READ_EXTERNAL_STORAGE))
+        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        val permissionGranted = isPermissionGranted(permission)
+        if (permissionGranted) {
             updateState()
+        }
+
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -183,7 +200,10 @@ class PhotoPickerFragment : DialogFragment() {
     private fun remeasureContentDialog() {
         coordinator.doOnLayout {
             val heightLp = design_bottom_sheet.layoutParams
-            heightLp.height = coordinator.measuredHeight + requireContext().resources.getDimensionPixelSize(cornerRadiusOutValue.resourceId)
+            heightLp.height =
+                coordinator.measuredHeight + requireContext().resources.getDimensionPixelSize(
+                    cornerRadiusOutValue.resourceId
+                )
             design_bottom_sheet.layoutParams = heightLp
         }
     }
@@ -247,22 +267,40 @@ class PhotoPickerFragment : DialogFragment() {
                     null,
                     null,
                     MediaStore.Images.Media.DATE_ADDED + " DESC"
-                ).let { vm.setPhotos(it)}
+                ).let { vm.setPhotos(it) }
         }
     }
 
     private fun grantPermissions() {
-        if (!isPermissionGranted(Manifest.permission.READ_EXTERNAL_STORAGE))
-            requestPermissions(
-                arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
-                Request.MEDIA_ACCESS_PERMISSION
-            )
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (!isPermissionGranted(Manifest.permission.READ_MEDIA_IMAGES))
+                requestPermissions(
+                    arrayOf(Manifest.permission.READ_MEDIA_IMAGES),
+                    Request.MEDIA_ACCESS_PERMISSION
+                )
+        } else {
+            if (!isPermissionGranted(Manifest.permission.READ_MEDIA_IMAGES))
+                requestPermissions(
+                    arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE),
+                    Request.MEDIA_ACCESS_PERMISSION
+                )
+        }
+
     }
 
     private fun updateState() {
-        if (isPermissionGranted(Manifest.permission.READ_EXTERNAL_STORAGE)) {
+        var isPermissionGranted =
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+                isPermissionGranted(Manifest.permission.READ_MEDIA_IMAGES)
+            ) {
+                true
+            } else isPermissionGranted(Manifest.permission.READ_EXTERNAL_STORAGE)
+        if (isPermissionGranted) {
             vm.setHasPermission(true)
             loadPhotos()
+        } else {
+            vm.setHasPermission(false)
+
         }
     }
 
@@ -274,6 +312,7 @@ class PhotoPickerFragment : DialogFragment() {
                 dismiss()
             }
         }
+
         override fun onSlide(bottomSheet: View, slideOffset: Float) {
             if (!needTransformation) return
             val calculatedSpacing = calculateSpacing(slideOffset)
@@ -293,7 +332,10 @@ class PhotoPickerFragment : DialogFragment() {
     }
 
     private fun pickImageCamera() {
-        startActivityForResult(CameraActivity.createIntent(requireContext()), Request.ADD_PHOTO_CAMERA)
+        startActivityForResult(
+            CameraActivity.createIntent(requireContext()),
+            Request.ADD_PHOTO_CAMERA
+        )
     }
 
     private fun pickImageGallery() {
